@@ -10,6 +10,45 @@ azmet_data_dir = "azmet_cache"
 
 #import phytooracle_data.seasons as seasons
 
+from scipy.interpolate import CubicSpline
+
+def interpolate(df_column, dt_to_interpolate, How=CubicSpline):
+    """
+    datetime_to_interpolate should be a string like this...
+        "2020-03-13 13:33:00"
+    ... or a Timestamp like this...
+        Timestamp('2020-03-13 13:33:00')
+    ... or a numpy.datetime64
+
+    # Single datetime as string...
+    azmet.interpolate(azmet_data.hourly_df.temp, "2020-03-13 00:33:00")
+
+    list_of_times_as_string = ["2020-03-13 02:33:00", "2020-03-13 02:44:00"]
+    azmet.interpolate(azmet_data.hourly_df.temp, list_of_times_as_string)
+
+    # A column of dates from a df...
+    azmet.interpolate(azmet_data.hourly_df.temp, azmet_data.hourly_df.index)
+    # The results of the above should be the same as azmet_data.hourly_df.temp
+    # since it's not really doing any interpolation, but it's a useful
+    # test and sanity check.
+
+    """
+
+    terp = How(df_column.index, df_column)
+
+    # Is it a single date?
+    if type(dt_to_interpolate) is str:
+        dt_to_interpolate = pd.Timestamp(dt_to_interpolate)
+    if type(dt_to_interpolate) is list:
+        if type(dt_to_interpolate[0]) is str:
+            dt_to_interpolate = pd.Series([pd.Timestamp(x) for x in dt_to_interpolate])
+    # Is it one or more pandas Timestamps (i.e. a column from a dataframe)
+    #if type(dt_to_interpolate) is pd._libs.tslibs.timestamps.Timestamp:
+    dt_to_interpolate = dt_to_interpolate.to_numpy()
+
+    return terp(dt_to_interpolate)
+
+
 class AZMet(object):
     """
     https://cals.arizona.edu/azmet/06.htm
@@ -156,10 +195,6 @@ class AZMet(object):
         "dewpoint",               # 18   R   Dewpoint, Hourly Average    'New' : 2003 to Present
 
     ]
-
-
-    #def interpolate(df, column, datetime):
-        #breakpoint
 
     def __init__(self, start_date=None, end_date=None, station="06"):
         """
