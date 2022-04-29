@@ -1,11 +1,17 @@
+# AZMet python library
+
+Python library to access azmet data...
+
+https://cals.arizona.edu/azmet/06.htm
+
 
 ## Usage
 
 ```
-https://cals.arizona.edu/azmet/06.htm
 
 import azmet
 azmet_data = azmet.AZMet(start_date="2020-03-13", end_date="2022-03-21")
+azmet_data = azmet.AZMet(start_date="2021-12-01", end_date="2022-04-01", station="06")
 
 print(azmet_data.eto_df)
 print(azmet_data.hu_df)
