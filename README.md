@@ -22,10 +22,8 @@ print(azmet_data.hourly_df.columns)
 
 print(azmet_data.hourly_df.temp)
 
-# https://stackoverflow.com/questions/27926669/how-do-you-interpolate-from-an-array-containing-datetime-objects
-from scipy.interpolate import CubicSpline
-cs = CubicSpline(azmet_data.hourly_df.index, azmet_data.hourly_df.temp.values)
-azmet_data.hourly_df.loc[pd.to_datetime("2022-03-21 23:01:00")] = None
+print(azmet_data.daily_df.loc['2020-03-13'].vpd_mean)
+
 ```
 
 ## Docs
