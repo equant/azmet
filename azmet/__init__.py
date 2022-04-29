@@ -3,9 +3,10 @@ import pdb
 import urllib.request
 import numpy as np
 import pandas as pd
+from datetime import date
 
-
-azmet_data_dir = os.path.join(raw_data_dir, "azmet")
+#azmet_data_dir = os.path.join(raw_data_dir, "azmet")
+azmet_data_dir = "azmet_cache"
 
 #import phytooracle_data.seasons as seasons
 
@@ -13,9 +14,22 @@ class AZMet(object):
     """
     https://cals.arizona.edu/azmet/06.htm
     
-    import phytooracle_data.azmet as azmet
-    azmet = azmet.AZMet()
-    azmet.hu_df
+    import azmet
+    azmet_data = azmet.AZMet(start_date="2020-03-13", end_date="2022-03-21")
+
+    print(azmet_data.eto_df)
+    print(azmet_data.hu_df)
+    print(azmet_data.daily_df)
+    print(azmet_data.hourly_df)
+
+    print(azmet_data.hourly_df.columns)
+
+    print(azmet_data.hourly_df.temp)
+
+    # https://stackoverflow.com/questions/27926669/how-do-you-interpolate-from-an-array-containing-datetime-objects
+    from scipy.interpolate import CubicSpline
+    cs = CubicSpline(azmet_data.hourly_df.index, azmet_data.hourly_df.temp.values)
+    azmet_data.hourly_df.loc[pd.to_datetime("2022-03-21 23:01:00")] = None
     """
 
 
@@ -51,6 +65,25 @@ class AZMet(object):
     Temperature and Heat Units are in Fahrenheit Units
     Heat Units calculated by Single Sine Method
     """
+    hu_columns_post_2020 = [
+            'doy',
+            'month',
+            'day',
+            'max',
+            'min',
+            '8655_hu',
+            '8655_cum',
+            '8650_hu',
+            '8650_cum',
+            '8645_hu',
+            '8645_cum',
+            '9455_hu',
+            '9455_cum',
+            'rh_max',
+            'rh_min',
+            'rh_ave',
+    ]
+
     hu_columns = [
             'doy',
             'month',
@@ -67,6 +100,7 @@ class AZMet(object):
             'rh_min',
             'rh_ave',
     ]
+
 
     raw_daily_columns = [
                              # Comments from AZMET data format definition page...
@@ -124,14 +158,17 @@ class AZMet(object):
     ]
 
 
-    def __init__(self, season=None, start_date=None, end_date=None, station="06"):
+    #def interpolate(df, column, datetime):
+        #breakpoint
+
+    def __init__(self, start_date=None, end_date=None, station="06"):
         """
         station 06 -> Maricopa https://cals.arizona.edu/azmet/06.htm
         """
         self.station = station
 
-        self.start_date = start_date
-        self.end_date = end_date
+        self.start_date = date.fromisoformat(start_date)
+        self.end_date   = date.fromisoformat(end_date)
 
         # Since we may have to build dataframes from one or more CSVs (e.g.
         # seasons that span multiple years), we read the csv files into dfs
@@ -154,8 +191,10 @@ class AZMet(object):
         # Let's loop through each year.  DL data if needed, and read csv files into
         # pandas dataframes
 
-        for y in self.season.years():
-            ystr = str(y)[:-2]          # last two digits of year.
+        #for y in self.season.years():
+        for y in range(self.start_date.year, self.end_date.year+1):
+            #ystr = str(y)[:-2]
+            ystr = str(y)[2:]          # last two digits of year.
             # Build a dictionary of filenames we need for this station/year combination
             azmet_filenames = {}
             for key in azmet_report_keys:
@@ -169,41 +208,42 @@ class AZMet(object):
             for key, filename in azmet_filenames.items():
                 filepath = os.path.join(azmet_data_dir, filename)
                 if not os.path.isfile(filepath):
-                    logging.info(f"Downloading azmet data to {filepath}")
+                    print(f"Downloading azmet data to {filepath}")
                     os.makedirs(azmet_data_dir, exist_ok=True)
                     urllib.request.urlretrieve(f'https://cals.arizona.edu/azmet/data/{filename}', filepath)
                 # Reference Evapotranspiration  (ETo) 
                 if key == "et":
-                    log.info(f"reading: {filepath}")
+                    print(f"reading: {filepath}")
                     _df = pd.read_fwf(filepath, names=self.eto_columns, skiprows=17, skipfooter=7)
                     _df['date'] = pd.to_datetime([f"{y} {x.doy}" for i,x in _df.iterrows()], format='%Y %j')
-                    temp_df_lists[key].append(_df[_df['date'].between(self.season.start_date(), self.season.end_date())])
+                    temp_df_lists[key].append(_df[_df['date'].dt.date.between(self.start_date, self.end_date)])
                 # Heat Units 
                 elif key == "hu":
-                    log.info(f"reading: {filepath}")
+                    print(f"reading: {filepath}")
                     _df = pd.read_fwf(filepath, names=self.hu_columns, skiprows=18, skipfooter=6)
+                    if type(_df.index) is pd.core.indexes.multi.MultiIndex:
+                        _df = pd.read_csv(filepath, names=self.hu_columns_post_2020, skiprows=18, skipfooter=6, delim_whitespace=True)[self.hu_columns] # lets ignore new column for now.
                     _df['date'] = pd.to_datetime([f"{y} {x.doy}" for i,x in _df.iterrows()], format='%Y %j')
                     #temp_df_lists[key].append(_df)
-                    temp_df_lists[key].append(_df[_df['date'].between(self.season.start_date(), self.season.end_date())])
+                    temp_df_lists[key].append(_df[_df['date'].dt.date.between(self.start_date, self.end_date)])
                 elif key == "rd":
-                    log.info(f"reading: {filepath}")
-                    #breakpoint()
+                    print(f"reading: {filepath}")
                     _df = pd.read_csv(filepath, names=self.raw_daily_columns)
                     _df['date'] = pd.to_datetime([f"{int(x.year)} {int(x.doy)}" for i,x in _df.iterrows()], format='%Y %j')
                     #temp_df_lists[key].append(_df)
-                    temp_df_lists[key].append(_df[_df['date'].between(self.season.start_date(), self.season.end_date())])
+                    temp_df_lists[key].append(_df[_df['date'].dt.date.between(self.start_date, self.end_date)])
                 elif key == "rh":
-                    log.info(f"reading: {filepath}")
+                    print(f"reading: {filepath}")
                     _df = pd.read_csv(filepath, names=self.raw_hourly_columns)
                     _df['date'] = pd.to_datetime([f"{int(x.year)} {int(x.doy)} {int(x.hour)-1}" for i,x in _df.iterrows()], format='%Y %j %H')
                     #temp_df_lists[key].append(_df)
-                    temp_df_lists[key].append(_df[_df['date'].between(self.season.start_date(), self.season.end_date())])
+                    temp_df_lists[key].append(_df[_df['date'].dt.date.between(self.start_date, self.end_date)])
 
 
-        self.eto_df = pd.concat(temp_df_lists['et'], axis=0, ignore_index=True)
-        self.hu_df = pd.concat(temp_df_lists['hu'], axis=0, ignore_index=True)
-        self.daily_df = pd.concat(temp_df_lists['rd'], axis=0, ignore_index=True)
-        self.hourly_df = pd.concat(temp_df_lists['rh'], axis=0, ignore_index=True)
+        self.eto_df = pd.concat(temp_df_lists['et'], axis=0, ignore_index=True).set_index('date')
+        self.hu_df = pd.concat(temp_df_lists['hu'], axis=0, ignore_index=True).set_index('date')
+        self.daily_df = pd.concat(temp_df_lists['rd'], axis=0, ignore_index=True).set_index('date')
+        self.hourly_df = pd.concat(temp_df_lists['rh'], axis=0, ignore_index=True).set_index('date')
 
         # Useful debugging things...
         #self.temp_df_lists = temp_df_lists          # Useful for debugging.
