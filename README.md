@@ -24,6 +24,7 @@ print(azmet_data.hourly_df.temp)
 
 print(azmet_data.daily_df.loc['2020-03-13'].vpd_mean)
 
+azmet.interpolate(azmet_data.hourly_df.temp, "2022-03-21 23:00:00")
 ```
 
 ## Docs
